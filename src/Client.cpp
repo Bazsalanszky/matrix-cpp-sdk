@@ -1,4 +1,5 @@
 #include "Client.h"
+#include "Logger.h"
 #include <iostream>
 #include <vector>
 
@@ -46,8 +47,8 @@ void Matrix::Client::setDisplayName(const std::string &displayName) {
     Json::Value body;
     body["displayname"] = displayName;
     Json::Value response = webapi->put("/_matrix/client/r0/profile/"+user_id+"/displayname?access_token="+token,body);
-    if(response.empty()){
-        std::cout << "Displayname set!" << std::endl;
+    if(!response.empty()){
+        logger.error("Error setting displayname. JSON: " + logger.JsonToString(response));
     }
 
 }
@@ -80,3 +81,46 @@ const std::string &Matrix::Client::getToken() const {
 WebAPI *Matrix::Client::getWebAPI() {
     return webapi;
 }
+
+void Matrix::Client::syncRooms() {
+    fetchRooms();
+    for(auto it = rooms.begin();it != rooms.end();it++){
+        it->second.sync();
+    }
+}
+
+Matrix::Client::iterator Matrix::Client::begin() {
+    return rooms.begin();
+}
+
+Matrix::Client::iterator Matrix::Client::end() {
+    return rooms.end();
+}
+
+void Matrix::Client::fetchRooms() {
+    Json::Value sync_response = webapi->get("/_matrix/client/r0/sync?access_token="+token);
+    Json::Value joined = sync_response["rooms"]["join"];
+    for (int i = 0; i < joined.size(); ++i) {
+        if(rooms.find(joined.getMemberNames()[i]) == rooms.end()){
+            rooms[joined.getMemberNames()[i]] = Room(joined.getMemberNames()[i],this);
+            logger.info("Added room "+ joined.getMemberNames()[i]);
+        }
+    }
+}
+
+void Matrix::Client::send(const std::string &roomID, const std::string &message_type, const Json::Value &content) {
+    Json::Value sync_response = webapi->put("/_matrix/client/r0/rooms/"+roomID+"/send/"+message_type+"/"+genTxID()+"?access_token="+token,content);
+}
+
+std::string Matrix::Client::genTxID(size_t len) {
+    static const char base62[] = "0123456789"
+                                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                 "abcdefghijklmnopqrstuvwxyz";
+    srand((unsigned int) time(NULL));
+    std::string result;
+    for(int i = 0;i<len-1;i++){
+        result += base62[rand() % 58];
+    }
+    return result;
+}
+

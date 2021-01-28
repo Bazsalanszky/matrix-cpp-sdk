@@ -37,3 +37,12 @@ void Matrix::RoomMember::setDisplayName(const std::string &displayName) {
 const std::string &Matrix::RoomMember::getUserId() const {
     return userID;
 }
+
+Matrix::RoomMember::RoomMember() {
+
+}
+
+Matrix::RoomMember::RoomMember(const Matrix::RoomMember &rm) {
+    userID = rm.getUserId();
+    displayName = rm.getDisplayName();
+}

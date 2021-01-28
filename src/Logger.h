@@ -17,31 +17,32 @@
    File created at: 2021. 01. 28.
 */
 
-
-
-#ifndef MATRIX_CPP_SDK_EVENT_H
-#define MATRIX_CPP_SDK_EVENT_H
+#ifndef MATRIX_CPP_SDK_LOGGER_H
+#define MATRIX_CPP_SDK_LOGGER_H
+#include <array>
 #include <string>
+#include <fstream>
 #include <json/json.h>
 
-#include "RoomMember.h"
-
 namespace Matrix {
-    class Event {
-        std::string id;
-        std::string type;
-        Json::Value content;
-        RoomMember target;
-        RoomMember sender;
-    public:
-        Event(const std::string &id, const std::string &type, const RoomMember &sender,
-              const Json::Value &content);
-        const std::string &getId() const;
-        const std::string &getType() const;
-        const Json::Value &getContent() const;
+    class Logger {
 
-        const RoomMember &getSender() const;
+        std::ofstream ofstream;
+    public:
+        enum level {
+            DEBUG = 0,
+            INFO = 1,
+            WARNING = 2,
+            ERROR = 3
+        };
+        Logger(std::string fileName = "matrix.log");
+        void log(level lvl,std::string string);
+        void info(std::string string);
+        void warning(std::string string);
+        void error(std::string string);
+        void debug(std::string string);
+        static std::string JsonToString(Json::Value json);
     };
 }
 
-#endif //MATRIX_CPP_SDK_EVENT_H
+#endif //MATRIX_CPP_SDK_LOGGER_H

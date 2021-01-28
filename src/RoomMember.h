@@ -28,11 +28,13 @@ namespace Matrix {
         std::string userID;
         std::string displayName;
     public:
+        RoomMember();
         RoomMember(const std::string &userId);
         RoomMember(const std::string &userId, const std::string &displayName);
         const std::string &getDisplayName() const;
         void setDisplayName(const std::string &displayName);
         const std::string &getUserId() const;
+        RoomMember(const RoomMember& rm);
     };
 }
 

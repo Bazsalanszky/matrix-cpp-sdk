@@ -21,18 +21,32 @@
 #ifndef MATRIX_CPP_SDK_ROOM_H
 #define MATRIX_CPP_SDK_ROOM_H
 #include <string>
+#include <vector>
+#include <map>
 
 #include "WebAPI.h"
-#include "Client.h"
+#include "Event.h"
+
 namespace Matrix {
+
+    class Client;
     class Room {
         std::string RoomID;
         Client* client;
+        WebAPI* webapi;
+        std::vector<Event> timeline;
+        std::map<std::string,RoomMember> members;
+        void fetchMembers();
     public:
+        Room();
+        Room(const std::string &roomId, Client *client);
         const std::string &getRoomId() const;
         const std::string &getDisplayName() const;
+        void addEvent(Event e);
+        RoomMember getMember(std::string user_id) const;
+        void sync();
+        const std::vector<Event> getTimeline() const;
     };
 }
-
 
 #endif //MATRIX_CPP_SDK_ROOM_H
