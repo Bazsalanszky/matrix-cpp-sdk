@@ -1,0 +1,6 @@
+[submodule "external/curl"]
+	path = external/curl
+	url = https://github.com/curl/curl
+[submodule "external/jsoncpp"]
+	path = external/jsoncpp
+	url = https://github.com/open-source-parsers/jsoncpp
