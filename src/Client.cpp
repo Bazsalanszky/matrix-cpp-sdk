@@ -1,5 +1,6 @@
 #include "Client.h"
 #include "Logger.h"
+#include "EventListener.h"
 #include <iostream>
 #include <vector>
 
@@ -9,6 +10,7 @@ Matrix::Client::Client(Homeserver *homeServer, const std::string &token) : token
     Json::Value response = webapi->get("/_matrix/client/r0/account/whoami?access_token="+token );
     if(response["user_id"].isString()){
         user_id = response["user_id"].asString();
+        sync();
         valid = true;
     }
 }
@@ -22,9 +24,10 @@ Matrix::Client::Client(Homeserver *homeServer, const std::string &name, const st
     request_body["password"] = password;
     Json::Value response = webapi->post("/_matrix/client/r0/login", request_body);
     if (response["access_token"].isString()) {
-        valid = true;
         token = response["access_token"].asString();
         user_id = response["user_id"].asString();
+        sync();
+        valid = true;
     }
 }
 
@@ -36,7 +39,7 @@ const std::string &Matrix::Client::getUserId() const {
     return user_id;
 }
 
-const std::string &Matrix::Client::getDisplayName() const {
+const std::string Matrix::Client::getDisplayName() const {
     Json::Value response = webapi->get("/_matrix/client/r0/profile/"+user_id+"/displayname?access_token="+token);
     if(response["displayname"].isString())
         return response["displayname"].asString();
@@ -53,25 +56,22 @@ void Matrix::Client::setDisplayName(const std::string &displayName) {
 
 }
 
-Json::Value Matrix::Client::sync() const{
-    return webapi->get("/_matrix/client/r0/sync?access_token="+token);
+void Matrix::Client::syncRooms(const Json::Value& join_json) {
+    fetchRooms(join_json);
+    for(auto it = rooms.begin();it != rooms.end();it++){
+        for (int i = 0; i < join_json.size(); ++i) {
+            if(join_json.getMemberNames()[i] == it->first) {
+                it->second.sync(join_json[join_json.getMemberNames()[i]]);
+                break;
+            }
+        }
+    }
 }
 
-std::vector<std::string> Matrix::Client::getInvites() {
-    std::vector<std::string> result;
-    Json::Value s = sync();
-    Json::Value invite = s["rooms"]["invite"];
-    for (int i = 0; i < invite.size(); ++i) {
-        result.push_back(invite.getMemberNames()[i]);
-    }
-    return result;
-}
-
-void Matrix::Client::acceptInvites() {
-    std::vector<std::string> invites = getInvites();
-    for (int i = 0; i < invites.size(); ++i) {
-        Json::Value res = webapi->post("/_matrix/client/r0/rooms/"+invites[i]+"/join?access_token="+token,Json::Value(Json::objectValue));
-    }
+void Matrix::Client::sync(){
+    Json::Value sync_response = (last_sync_time.empty()) ? webapi->get("/_matrix/client/r0/sync?access_token="+token) : webapi->get("/_matrix/client/r0/sync?access_token="+token +"&since="+last_sync_time);
+    syncRooms(sync_response["rooms"]["join"]);
+    last_sync_time = sync_response["next_batch"].asString();
 }
 
 const std::string &Matrix::Client::getToken() const {
@@ -82,13 +82,6 @@ WebAPI *Matrix::Client::getWebAPI() {
     return webapi;
 }
 
-void Matrix::Client::syncRooms() {
-    fetchRooms();
-    for(auto it = rooms.begin();it != rooms.end();it++){
-        it->second.sync();
-    }
-}
-
 Matrix::Client::iterator Matrix::Client::begin() {
     return rooms.begin();
 }
@@ -97,13 +90,11 @@ Matrix::Client::iterator Matrix::Client::end() {
     return rooms.end();
 }
 
-void Matrix::Client::fetchRooms() {
-    Json::Value sync_response = webapi->get("/_matrix/client/r0/sync?access_token="+token);
-    Json::Value joined = sync_response["rooms"]["join"];
-    for (int i = 0; i < joined.size(); ++i) {
-        if(rooms.find(joined.getMemberNames()[i]) == rooms.end()){
-            rooms[joined.getMemberNames()[i]] = Room(joined.getMemberNames()[i],this);
-            logger.info("Added room "+ joined.getMemberNames()[i]);
+void Matrix::Client::fetchRooms(const Json::Value &join_json) {
+    for (int i = 0; i < join_json.size(); ++i) {
+        if(rooms.find(join_json.getMemberNames()[i]) == rooms.end()){
+            rooms[join_json.getMemberNames()[i]] = Room(join_json.getMemberNames()[i],this);
+            logger.info("Added room "+ join_json.getMemberNames()[i]);
         }
     }
 }
@@ -122,5 +113,28 @@ std::string Matrix::Client::genTxID(size_t len) {
         result += base62[rand() % 58];
     }
     return result;
+}
+
+void Matrix::Client::syncThread() {
+    using namespace std::chrono_literals;
+    while (1){
+        sync();
+        std::this_thread::sleep_for(1s);
+    }
+}
+
+void Matrix::Client::start_thread() {
+    if(sync_thread == nullptr) {
+        std::thread t(&Client::syncThread, this);
+        sync_thread = &t;
+        t.join();
+    }else
+        logger.error("Thread already running!");
+}
+
+void Matrix::Client::addEventListener(Matrix::EventListener* eventListener) {
+    for (auto it = rooms.begin(); it != rooms.end(); it++) {
+        it->second.addEventListener(eventListener);
+    }
 }
 

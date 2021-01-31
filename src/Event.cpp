@@ -34,8 +34,13 @@ const Json::Value &Matrix::Event::getContent() const {
 }
 
 Matrix::Event::Event(const std::string &id, const std::string &type, const RoomMember &sender,
-                     const Json::Value &content) : id(id), type(type),content(content),sender(sender),target(target) {}
+                     const Json::Value &content,
+                     const std::string &room_id) : id(id), type(type),content(content),sender(sender),target(target),room_id(room_id) {}
 
 const Matrix::RoomMember &Matrix::Event::getSender() const {
     return sender;
+}
+
+const std::string &Matrix::Event::getRoomId() const {
+    return room_id;
 }

@@ -26,6 +26,7 @@
 
 #include "WebAPI.h"
 #include "Event.h"
+#include "EventListener.h"
 
 namespace Matrix {
 
@@ -35,16 +36,18 @@ namespace Matrix {
         Client* client;
         WebAPI* webapi;
         std::vector<Event> timeline;
+        std::vector<EventListener*> listeners;
         std::map<std::string,RoomMember> members;
         void fetchMembers();
     public:
         Room();
         Room(const std::string &roomId, Client *client);
         const std::string &getRoomId() const;
-        const std::string &getDisplayName() const;
+        const std::string getDisplayName() const;
         void addEvent(Event e);
+        void addEventListener(EventListener* eventListener);
         RoomMember getMember(std::string user_id) const;
-        void sync();
+        void sync(const Json::Value& room_sync_json);
         const std::vector<Event> getTimeline() const;
     };
 }

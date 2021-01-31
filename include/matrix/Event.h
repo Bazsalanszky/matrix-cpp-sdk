@@ -30,16 +30,17 @@ namespace Matrix {
     class Event {
         std::string id;
         std::string type;
+        std::string room_id;
         Json::Value content;
         RoomMember target;
         RoomMember sender;
     public:
-        Event(const std::string &id, const std::string &type, const RoomMember &sender,
-              const Json::Value &content);
+        Event(const std::string &id, const std::string &type, const RoomMember &sender, const Json::Value &content,
+              const std::string &room_id);
         const std::string &getId() const;
         const std::string &getType() const;
         const Json::Value &getContent() const;
-
+        const std::string &getRoomId() const;
         const RoomMember &getSender() const;
     };
 }
