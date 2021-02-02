@@ -6,9 +6,10 @@
 
 Matrix::Client::Client(Homeserver *homeServer, const std::string &token) : token(token),
                                                                            homeserver(homeServer),
-                                                                           webapi(homeServer->getWebAPI()) {
-    Json::Value response = webapi->get("/_matrix/client/r0/account/whoami?access_token="+token );
-    if(response["user_id"].isString()){
+                                                                           webapi(homeServer->getWebAPI()),
+                                                                           syncer(this){
+    Json::Value response = webapi->get("/_matrix/client/r0/account/whoami?access_token=" + token);
+    if (response["user_id"].isString()) {
         user_id = response["user_id"].asString();
         sync();
         valid = true;
@@ -17,7 +18,8 @@ Matrix::Client::Client(Homeserver *homeServer, const std::string &token) : token
 
 Matrix::Client::Client(Homeserver *homeServer, const std::string &name, const std::string &password)
         : homeserver(homeServer),
-          webapi(homeServer->getWebAPI()) {
+          webapi(homeServer->getWebAPI()),
+          syncer(this){
     Json::Value request_body;
     request_body["type"] = "m.login.password";
     request_body["user"] = name;
@@ -39,39 +41,23 @@ const std::string &Matrix::Client::getUserId() const {
     return user_id;
 }
 
-const std::string Matrix::Client::getDisplayName() const {
-    Json::Value response = webapi->get("/_matrix/client/r0/profile/"+user_id+"/displayname?access_token="+token);
-    if(response["displayname"].isString())
+const std::string Matrix::Client::getDisplayName(const std::string &id) const {
+    std::string user = (id == "") ? user_id : id;
+    Json::Value response = webapi->get("/_matrix/client/r0/profile/" + user + "/displayname?access_token=" + token);
+    if (response["displayname"].isString())
         return response["displayname"].asString();
-    else return user_id;
+    else return user;
 }
 
 void Matrix::Client::setDisplayName(const std::string &displayName) {
     Json::Value body;
     body["displayname"] = displayName;
-    Json::Value response = webapi->put("/_matrix/client/r0/profile/"+user_id+"/displayname?access_token="+token,body);
-    if(!response.empty()){
+    Json::Value response = webapi->put("/_matrix/client/r0/profile/" + user_id + "/displayname?access_token=" + token,
+                                       body);
+    if (!response.empty()) {
         logger.error("Error setting displayname. JSON: " + logger.JsonToString(response));
     }
 
-}
-
-void Matrix::Client::syncRooms(const Json::Value& join_json) {
-    fetchRooms(join_json);
-    for(auto it = rooms.begin();it != rooms.end();it++){
-        for (int i = 0; i < join_json.size(); ++i) {
-            if(join_json.getMemberNames()[i] == it->first) {
-                it->second.sync(join_json[join_json.getMemberNames()[i]]);
-                break;
-            }
-        }
-    }
-}
-
-void Matrix::Client::sync(){
-    Json::Value sync_response = (last_sync_time.empty()) ? webapi->get("/_matrix/client/r0/sync?access_token="+token) : webapi->get("/_matrix/client/r0/sync?access_token="+token +"&since="+last_sync_time);
-    syncRooms(sync_response["rooms"]["join"]);
-    last_sync_time = sync_response["next_batch"].asString();
 }
 
 const std::string &Matrix::Client::getToken() const {
@@ -82,25 +68,14 @@ WebAPI *Matrix::Client::getWebAPI() {
     return webapi;
 }
 
-Matrix::Client::iterator Matrix::Client::begin() {
-    return rooms.begin();
-}
 
-Matrix::Client::iterator Matrix::Client::end() {
-    return rooms.end();
-}
 
-void Matrix::Client::fetchRooms(const Json::Value &join_json) {
-    for (int i = 0; i < join_json.size(); ++i) {
-        if(rooms.find(join_json.getMemberNames()[i]) == rooms.end()){
-            rooms[join_json.getMemberNames()[i]] = Room(join_json.getMemberNames()[i],this);
-            logger.info("Added room "+ join_json.getMemberNames()[i]);
-        }
-    }
-}
-
-void Matrix::Client::send(const std::string &roomID, const std::string &message_type, const Json::Value &content) {
-    Json::Value sync_response = webapi->put("/_matrix/client/r0/rooms/"+roomID+"/send/"+message_type+"/"+genTxID()+"?access_token="+token,content);
+Json::Value
+Matrix::Client::send(const std::string &roomID, const std::string &message_type, const Json::Value &content) {
+    return webapi->put(
+            "/_matrix/client/r0/rooms/" + roomID + "/send/" + message_type + "/" + genTxID() + "?access_token=" +
+            token,
+            content);
 }
 
 std::string Matrix::Client::genTxID(size_t len) {
@@ -109,32 +84,53 @@ std::string Matrix::Client::genTxID(size_t len) {
                                  "abcdefghijklmnopqrstuvwxyz";
     srand((unsigned int) time(NULL));
     std::string result;
-    for(int i = 0;i<len-1;i++){
+    for (int i = 0; i < len - 1; i++) {
         result += base62[rand() % 58];
     }
     return result;
 }
 
-void Matrix::Client::syncThread() {
-    using namespace std::chrono_literals;
-    while (1){
-        sync();
-        std::this_thread::sleep_for(1s);
-    }
+void Matrix::Client::addEventListener(Matrix::EventListener *eventListener) {
+    syncer.addEventListener(eventListener);
 }
 
-void Matrix::Client::start_thread() {
-    if(sync_thread == nullptr) {
-        std::thread t(&Client::syncThread, this);
-        sync_thread = &t;
-        t.join();
-    }else
-        logger.error("Thread already running!");
+std::string Matrix::Client::uploadFile(const char *file) {
+    Json::Value response = webapi->post("/_matrix/media/r0/upload?access_token=" + token, file);
+    if (response["content_uri"].isString()) {
+        return response["content_uri"].asString();
+    }
+    return std::string();
 }
 
-void Matrix::Client::addEventListener(Matrix::EventListener* eventListener) {
-    for (auto it = rooms.begin(); it != rooms.end(); it++) {
-        it->second.addEventListener(eventListener);
-    }
+void Matrix::Client::sendFile(const std::string &roomID, const std::string &file_path) {
+    std::string resource = uploadFile(file_path.c_str());
+    Json::Value payload;
+    logger.debug("URL: " + resource);
+    payload["url"] = resource;
+    payload["msgtype"] = "m.image";
+    payload["body"] = file_path.substr(file_path.find_last_of("/\\") + 1);
+    Json::Value resp = send(roomID, "m.room.message", payload);
 }
+
+void Matrix::Client::sync() {
+    syncer.sync();
+}
+
+void Matrix::Client::start() {
+    syncer.start();
+}
+
+void Matrix::Client::addRoom(const Matrix::Room &room) {
+    rooms_joined[room.getRoomId()] = room;
+}
+
+void Matrix::Client::addInvitedRoom(const Matrix::Room &room) {
+    rooms_invited[room.getRoomId()] = room;
+}
+
+void Matrix::Client::joinRoom(const std::string &room_id) {
+    Json::Value response = webapi->post("/_matrix/client/r0/join/"+room_id+"?access_token=" + token, Json::Value(Json::objectValue));
+}
+
+
 

@@ -38,32 +38,21 @@ Matrix::Room::Room(const std::string &roomId, Matrix::Client *client) : RoomID(r
 
 void Matrix::Room::addEvent(Event e) {
     timeline.push_back(e);
-    for (int i = 0; i < listeners.size(); ++i) {
-        listeners[i]->onEvent(e);
-    }
 }
 
 Matrix::RoomMember Matrix::Room::getMember(std::string id) const {
-    return members.at(id);
+    if(members.find(id) != members.end())
+        return members.at(id);
+    else
+        return RoomMember(id,client->getDisplayName(id));
 }
 
 Matrix::Room::Room() {
 
 }
 
-void Matrix::Room::sync(const Json::Value &room_sync_json) {
-    fetchMembers();
-    Json::Value timeline_json = room_sync_json["timeline"]["events"];
-    for (int j = 0; j < timeline_json.size(); ++j) {
-        addEvent(Event(timeline_json[j]["event_id"].asString(), timeline_json[j]["type"].asString(),
-                       getMember(timeline_json[j]["sender"].asString()),
-                       timeline_json[j]["content"], RoomID));
-    }
-}
-
 void Matrix::Room::fetchMembers() {
-    Json::Value response = webapi->get(
-            "/_matrix/client/r0/rooms/" + RoomID + "/members?access_token=" + client->getToken());
+    Json::Value response = webapi->get("/_matrix/client/r0/rooms/" + RoomID + "/members?access_token=" + client->getToken());
     response = response["chunk"];
     for (int i = 0; i < response.size(); ++i) {
         members[response[i]["sender"].asString()] = RoomMember(response[i]["sender"].asString(),
@@ -73,8 +62,4 @@ void Matrix::Room::fetchMembers() {
 
 const std::vector<Matrix::Event> Matrix::Room::getTimeline() const {
     return timeline;
-}
-
-void Matrix::Room::addEventListener(Matrix::EventListener *eventListener) {
-    listeners.push_back(eventListener);
 }

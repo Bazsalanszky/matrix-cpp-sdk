@@ -21,11 +21,34 @@
 
 #ifndef MATRIX_CPP_SDK_SYNCER_H
 #define MATRIX_CPP_SDK_SYNCER_H
+#include <thread>
+#include <vector>
 
+#include "WebAPI.h"
+#include "matrix/EventListener.h"
 
-class Syncer {
+namespace Matrix{
+    class Client;
+    class Syncer {
+        WebAPI* webapi;
+        Matrix::Client* client;
+        std::vector<EventListener*> listeners;
+        std::thread* sync_thread = nullptr;
+        std::string last_sync_time;
+        void fetchRooms(const Json::Value &join_json);
 
-};
+        void syncRooms(const Json::Value& sync_response);
+        void syncInvites(const Json::Value& sync_response);
+        void fetchInvites(const Json::Value& sync_response);
+        void syncThread();
+        void callListeners(Event event);
+    public:
+        Syncer(Client *client);
 
+        void start();
+        void addEventListener(EventListener* eventListener);
+        void sync();
+    };
+}
 
 #endif //MATRIX_CPP_SDK_SYNCER_H

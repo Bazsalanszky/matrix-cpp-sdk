@@ -45,9 +45,7 @@ namespace Matrix {
         const std::string &getRoomId() const;
         const std::string getDisplayName() const;
         void addEvent(Event e);
-        void addEventListener(EventListener* eventListener);
         RoomMember getMember(std::string user_id) const;
-        void sync(const Json::Value& room_sync_json);
         const std::vector<Event> getTimeline() const;
     };
 }

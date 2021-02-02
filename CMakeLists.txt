@@ -9,7 +9,7 @@ add_subdirectory(external/jsoncpp)
 
 include(GNUInstallDirs)
 
-set(SOURCE_FILES src/WebAPI.cpp src/Client.cpp src/Homeserver.cpp src/Room.cpp src/Event.cpp src/RoomMember.cpp src/Logger.cpp include/matrix/EventListener.h src/EventListener.cpp)
+set(SOURCE_FILES src/WebAPI.cpp src/Client.cpp src/Homeserver.cpp src/Room.cpp src/Event.cpp src/RoomMember.cpp src/Logger.cpp include/matrix/EventListener.h src/EventListener.cpp src/Syncer.cpp src/Syncer.h)
 add_library(matrix-cpp-sdk SHARED ${SOURCE_FILES})
 target_link_libraries(matrix-cpp-sdk
         PRIVATE libcurl
