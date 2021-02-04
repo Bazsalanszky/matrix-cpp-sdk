@@ -43,6 +43,7 @@ namespace Matrix {
 
         Json::Value send(const std::string &roomID, const std::string &message_type, const Json::Value &content);
         void sendFile(const std::string& roomID, const std::string &file_path);
+		void setTyping(const std::string& roomID,bool typing,int timeout);
         std::string uploadFile(const char *file);
 
         void addRoom(const Room& room);

@@ -17,9 +17,9 @@ Matrix::Client::Client(Homeserver *homeServer, const std::string &token) : token
 }
 
 Matrix::Client::Client(Homeserver *homeServer, const std::string &name, const std::string &password)
-        : homeserver(homeServer),
-          webapi(homeServer->getWebAPI()),
-          syncer(this){
+	: homeserver(homeServer),
+	  webapi(homeServer->getWebAPI()),
+	  syncer(this){
     Json::Value request_body;
     request_body["type"] = "m.login.password";
     request_body["user"] = name;
@@ -73,15 +73,15 @@ WebAPI *Matrix::Client::getWebAPI() {
 Json::Value
 Matrix::Client::send(const std::string &roomID, const std::string &message_type, const Json::Value &content) {
     return webapi->put(
-            "/_matrix/client/r0/rooms/" + roomID + "/send/" + message_type + "/" + genTxID() + "?access_token=" +
-            token,
-            content);
+					   "/_matrix/client/r0/rooms/" + roomID + "/send/" + message_type + "/" + genTxID() + "?access_token=" +
+					   token,
+					   content);
 }
 
 std::string Matrix::Client::genTxID(size_t len) {
     static const char base62[] = "0123456789"
-                                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                 "abcdefghijklmnopqrstuvwxyz";
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		"abcdefghijklmnopqrstuvwxyz";
     srand((unsigned int) time(NULL));
     std::string result;
     for (int i = 0; i < len - 1; i++) {
@@ -105,7 +105,6 @@ std::string Matrix::Client::uploadFile(const char *file) {
 void Matrix::Client::sendFile(const std::string &roomID, const std::string &file_path) {
     std::string resource = uploadFile(file_path.c_str());
     Json::Value payload;
-    logger.debug("URL: " + resource);
     payload["url"] = resource;
     payload["msgtype"] = "m.image";
     payload["body"] = file_path.substr(file_path.find_last_of("/\\") + 1);
@@ -132,5 +131,15 @@ void Matrix::Client::joinRoom(const std::string &room_id) {
     Json::Value response = webapi->post("/_matrix/client/r0/join/"+room_id+"?access_token=" + token, Json::Value(Json::objectValue));
 }
 
+void Matrix::Client::setTyping(const std::string& roomID,bool typing,int timeout){
+	Json::Value payload;
+    payload["timeout"] = timeout;
+    payload["typing"] = typing;
+	Json::Value response = webapi->put("/_matrix/client/r0/rooms/"+roomID+"/typing/"+user_id+"?access_token=" + token, payload);
+	logger.debug(response.toStyledString());
+	if(!response.isObject() || !response.empty()) {
+		logger.error(response.toStyledString());
+	}
+}
 
 
